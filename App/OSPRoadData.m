@@ -468,7 +468,7 @@ static inline double OSPBearing(NSArray *a, NSArray *b)
     [self ensureIndex];
     NSMutableSet *visited = [NSMutableSet setWithObject:from];
     NSString *roadName = from.name ?: @"";   // "" = we are on an unnamed link: follow unnamed ways only
-    OSPWay *way = from; NSArray *pts = from.points; double total = 0;
+    NSArray *pts = from.points; double total = 0;
     if (seg + 1 >= pts.count) return NO;
     NSInteger i = dir > 0 ? (NSInteger)seg + 1 : (NSInteger)seg;
     NSArray *carPt = @[@([pts[seg][0] doubleValue] + ([pts[seg + 1][0] doubleValue] - [pts[seg][0] doubleValue]) * t),
@@ -494,7 +494,7 @@ static inline double OSPBearing(NSArray *a, NSArray *b)
             }
         }
         if (!bestW) return NO;
-        [visited addObject:bestW]; way = bestW; pts = bestW.points;
+        [visited addObject:bestW]; pts = bestW.points;
         if (bestW.limit > 0 && [bestW.name isEqualToString:roadName]) { r.limit = bestW.limit; r.inheritedDistance = total; return YES; }   // a link's own tag is not the road's
         NSInteger j = bestK;
         while (j + bestD >= 0 && j + bestD < (NSInteger)pts.count) { total += OSPMetres(pts[j], pts[j + bestD]); j += bestD; }
