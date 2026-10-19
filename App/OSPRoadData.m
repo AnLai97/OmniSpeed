@@ -23,6 +23,45 @@
 @implementation OSPRoad
 @end
 
+// One way -> the compact form we cache (defined with the Overpass code below); the XML parser needs it first
+static NSDictionary *OSPCompactWay(NSDictionary *tags, NSArray *pts);
+
+// OSM API XML (nodes + ways with nd refs) -> compact, streamed through NSXMLParser
+@interface OSPOsmXML : NSObject <NSXMLParserDelegate>
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSArray *> *nodes;   // id -> @[lat, lon]
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *ways;
+@property (nonatomic, strong) NSMutableArray *refs;
+@property (nonatomic, strong) NSMutableDictionary *tags;
+@end
+
+@implementation OSPOsmXML
+
+- (void)parser:(NSXMLParser *)parser didStartElement:(NSString *)name namespaceURI:(NSString *)ns qualifiedName:(NSString *)q attributes:(NSDictionary<NSString *, NSString *> *)a
+{
+    if ([name isEqualToString:@"node"]) {
+        if (!self.nodes) self.nodes = [NSMutableDictionary dictionary];
+        self.nodes[a[@"id"] ?: @""] = @[@(a[@"lat"].doubleValue), @(a[@"lon"].doubleValue)];
+    } else if ([name isEqualToString:@"way"]) {
+        self.refs = [NSMutableArray array]; self.tags = [NSMutableDictionary dictionary];
+    } else if (self.refs && [name isEqualToString:@"nd"]) {
+        NSArray *p = self.nodes[a[@"ref"] ?: @""];
+        if (p) [self.refs addObject:p];
+    } else if (self.refs && [name isEqualToString:@"tag"] && a[@"k"] && a[@"v"]) {
+        self.tags[a[@"k"]] = a[@"v"];
+    }
+}
+
+- (void)parser:(NSXMLParser *)parser didEndElement:(NSString *)name namespaceURI:(NSString *)ns qualifiedName:(NSString *)q
+{
+    if (![name isEqualToString:@"way"] || !self.refs) return;
+    if (!self.ways) self.ways = [NSMutableArray array];
+    NSDictionary *w = OSPCompactWay(self.tags, self.refs);
+    if (w) [self.ways addObject:w];
+    self.refs = nil; self.tags = nil;
+}
+
+@end
+
 @interface OSPRoadData ()
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSArray<OSPWay *> *> *cells;   // key -> ways
 @property (nonatomic, strong) NSMutableSet<NSString *> *pending;                              // keys being downloaded
@@ -172,42 +211,6 @@ static NSArray<NSDictionary *> *OSPCompact(NSDictionary *json)
     }
     return out;
 }
-
-// OSM API XML (nodes + ways with nd refs) -> compact, streamed through NSXMLParser
-@interface OSPOsmXML : NSObject <NSXMLParserDelegate>
-@property (nonatomic, strong) NSMutableDictionary<NSString *, NSArray *> *nodes;   // id -> @[lat, lon]
-@property (nonatomic, strong) NSMutableArray<NSDictionary *> *ways;
-@property (nonatomic, strong) NSMutableArray *refs;
-@property (nonatomic, strong) NSMutableDictionary *tags;
-@end
-
-@implementation OSPOsmXML
-
-- (void)parser:(NSXMLParser *)parser didStartElement:(NSString *)name namespaceURI:(NSString *)ns qualifiedName:(NSString *)q attributes:(NSDictionary<NSString *, NSString *> *)a
-{
-    if ([name isEqualToString:@"node"]) {
-        if (!self.nodes) self.nodes = [NSMutableDictionary dictionary];
-        self.nodes[a[@"id"] ?: @""] = @[@(a[@"lat"].doubleValue), @(a[@"lon"].doubleValue)];
-    } else if ([name isEqualToString:@"way"]) {
-        self.refs = [NSMutableArray array]; self.tags = [NSMutableDictionary dictionary];
-    } else if (self.refs && [name isEqualToString:@"nd"]) {
-        NSArray *p = self.nodes[a[@"ref"] ?: @""];
-        if (p) [self.refs addObject:p];
-    } else if (self.refs && [name isEqualToString:@"tag"] && a[@"k"] && a[@"v"]) {
-        self.tags[a[@"k"]] = a[@"v"];
-    }
-}
-
-- (void)parser:(NSXMLParser *)parser didEndElement:(NSString *)name namespaceURI:(NSString *)ns qualifiedName:(NSString *)q
-{
-    if (![name isEqualToString:@"way"] || !self.refs) return;
-    if (!self.ways) self.ways = [NSMutableArray array];
-    NSDictionary *w = OSPCompactWay(self.tags, self.refs);
-    if (w) [self.ways addObject:w];
-    self.refs = nil; self.tags = nil;
-}
-
-@end
 
 static NSArray<NSDictionary *> *OSPCompactFromXML(NSData *xml)
 {
