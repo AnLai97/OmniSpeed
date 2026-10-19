@@ -19,7 +19,6 @@
 - (instancetype)init
 {
     if (!(self = [super init])) return nil;
-    _gpsSpeed = -1; _gpsAccuracy = -1;
     _roads = [OSPRoadData new];
     __weak typeof(self) weakSelf = self;
     _roads.onChange = ^{ [weakSelf updateRoad]; [weakSelf changed]; };
@@ -90,7 +89,10 @@
 - (CLAuthorizationStatus)authStatus
 {
     if (@available(iOS 14, *)) return self.manager ? self.manager.authorizationStatus : kCLAuthorizationStatusNotDetermined;
-    return [CLLocationManager authorizationStatus];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    return [CLLocationManager authorizationStatus];   // iOS 13 only
+#pragma clang diagnostic pop
 }
 
 - (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations
