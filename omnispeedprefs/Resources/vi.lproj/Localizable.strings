@@ -1,0 +1,42 @@
+/* OmniSpeed – Tiếng Việt */
+
+"LANGUAGE" = "Ngôn ngữ";
+"HEADER_TAGLINE" = "Tốc độ GPS và giới hạn của đường đang chạy, từ OpenStreetMap";
+"STATUS_ON" = "Đang bật";
+"STATUS_OFF" = "Đang tắt";
+"VERSION_FORMAT" = "Phiên bản: %@";
+"COPYRIGHT" = "Bản quyền © 2026 AnLai";
+"OK" = "OK";
+
+"GENERAL_FOOTER" = "Thay đổi áp dụng ngay trong app OmniSpeed.";
+"ENABLE" = "Bật OmniSpeed";
+
+/* TWEAK SETTINGS */
+
+"DISPLAY_TITLE" = "Hiển thị";
+"DISPLAY_FOOTER" = "Biển giới hạn hiện ở góc trên bên phải khi xe đang ở trên một con đường có trong bản đồ.";
+"SHOW_LIMIT" = "Hiện biển giới hạn";
+"SHOW_ROAD" = "Hiện tên đường";
+"KEEP_AWAKE" = "Không tắt màn hình";
+
+"WARN_TITLE" = "Cảnh báo quá tốc độ";
+"WARN_FOOTER" = "Số tốc độ chuyển đỏ và viền màn hình nhấp nháy khi vượt giới hạn.";
+"WARN" = "Cảnh báo";
+"WARN_OVER_TITLE" = "Ngưỡng cảnh báo (km/h so với giới hạn)";
+"WARN_OVER_FOOTER" = "Số âm: báo trước khi chạm giới hạn. Ví dụ 5: biển 60 thì báo từ 66 km/h.";
+
+"MAP_TITLE" = "Dữ liệu bản đồ";
+"MAP_FOOTER" = "Giới hạn lấy từ OpenStreetMap (thẻ maxspeed của con đường); đoạn chưa gắn thẻ thì dùng biển đã qua hoặc phía trước trên cùng con đường, cuối cùng là mặc định theo loại đường (trong đô thị: đường đôi/một chiều 60, đường thường 50, cao tốc 120, khu dân cư 20). Đường quanh xe được tải theo ô 1 km và giữ trên máy 30 ngày. Máy chủ Overpass nhẹ và nhanh; api.openstreetmap.org là máy chủ gốc, nặng hơn (1–3 MB mỗi ô) nhưng luôn có — app tự chuyển sang đó khi Overpass lỗi.";
+"CLASS_DEFAULTS" = "Mặc định theo loại đường";
+"SERVER" = "Máy chủ dữ liệu";
+"SERVER_0" = "overpass-api.de";
+"SERVER_1" = "overpass.kumi.systems";
+"SERVER_2" = "maps.mail.ru";
+"SERVER_3" = "api.openstreetmap.org (gốc)";
+"CLEAR_CACHE" = "Xóa dữ liệu bản đồ đã tải";
+"CLEAR_CACHE_DONE" = "Đã xóa dữ liệu bản đồ. App sẽ tải lại khi chạy.";
+
+"APP_TITLE" = "Ứng dụng";
+"APP_FOOTER" = "Màn hình tốc độ nằm trong app OmniSpeed ngoài màn hình chính. Có thể mở bằng Siri / Phím tắt qua omnispeed://";
+"OPEN_APP" = "Mở OmniSpeed";
+"OPEN_APP_FAILED" = "Không mở được app OmniSpeed. Hãy cài lại gói hoặc chạy uicache.";

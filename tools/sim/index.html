@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OmniSpeed Simulator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Inter+Tight:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+/* Layout: phone mockup (the app screen, 1:1 with OSPSpeedViewController) on the left, real OSM map + route +
+   drive controls on the right. Single dark look by choice: a cockpit around a black in-car screen. */
+:root {
+  --bg: #0f1216; --panel: #171b21; --panel-2: #1f252d; --line: #2a323c;
+  --fg: #e6eaf0; --muted: #8a94a3; --accent: #3b86ff; --warn: #ff4040; --ok: #3ddc84; --sign-red: #db1f1f;
+  --font-ui: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font-ui);
+  padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+.wrap { display: grid; grid-template-columns: 390px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+
+/* --- phone ---------------------------------------------------------------- */
+.phone { width: 390px; max-width: 100%; height: 760px; border-radius: 44px; border: 10px solid #23272e; background: #000;
+  position: relative; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.6); position: sticky; top: 16px; }
+.phone.landscape { width: 100%; height: 390px; }
+.screen { position: absolute; inset: 0; }
+.flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; border: 18px solid var(--warn); border-radius: 34px; }
+.flash.on { animation: pulse .9s ease-in-out infinite alternate; }
+@keyframes pulse { from { opacity: .15 } to { opacity: .9 } }
+@media (prefers-reduced-motion: reduce) { .flash.on { animation: none; opacity: .7; } }
+.speed { position: absolute; left: 24px; right: 24px; top: 50%; transform: translateY(-62%); text-align: center;
+  font: 800 200px/1 var(--font-num); color: #fff; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.speed.warn { color: #ff4040; }
+.phone.landscape .speed { font-size: 150px; }
+.unit { position: absolute; left: 0; right: 0; top: calc(50% + 46px); text-align: center; font: 600 28px var(--font-ui); color: #999; }
+.phone.landscape .unit { top: calc(50% + 26px); }
+.road { position: absolute; left: 24px; right: 24px; top: calc(50% + 92px); text-align: center; font: 500 22px var(--font-ui); color: #ccc;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phone.landscape .road { top: calc(50% + 66px); }
+.sign { position: absolute; top: 16px; right: 20px; width: 110px; height: 110px; border-radius: 50%; background: #fff;
+  box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 17px var(--sign-red); display: grid; place-items: center;
+  font: 700 50px var(--font-num); color: #000; font-variant-numeric: tabular-nums; }
+.sign.none { color: #999; }
+.sign.inh { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 17px #e8706a; color: #333; }   /* inherited from the nearest tagged road */
+.sign.inh::after { content: "≈"; position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); font: 700 14px var(--font-num); color: #c33; }
+.tl .sg.inh { box-shadow: inset 0 0 0 5px #e8706a; color: #333; }
+.sign.def { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 17px #7d8da3; color: #333; }   /* legal default for the road class */
+.sign.def::after { content: "mặc định"; position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font: 600 9px var(--font-ui); color: #556; letter-spacing: .02em; }
+.tl .sg.def { box-shadow: inset 0 0 0 5px #7d8da3; color: #333; }
+.status { position: absolute; left: 20px; right: 64px; bottom: 16px; font: 500 15px var(--font-ui); color: #8c8c8c; line-height: 1.35; }
+.status div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gear { position: absolute; right: 20px; bottom: 12px; width: 44px; height: 44px; display: grid; place-items: center; color: #999; }
+.off { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 32px; font: 600 20px var(--font-ui); color: #b3b3b3; }
+
+/* --- right side ----------------------------------------------------------- */
+.col { display: grid; gap: 14px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+.panel h2 { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+#map { height: 440px; border-radius: 8px; background: #0b0e12; }
+.leaflet-container { font-family: var(--font-ui); }
+.car-icon { width: 0; height: 0; }
+.car-icon div { width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: rgba(59,134,255,.25); display: grid; place-items: center; }
+.car-icon svg { display: block; }
+.pin { width: 26px; height: 26px; margin: -26px 0 0 -13px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; display: grid; place-items: center; color: #fff; font: 700 12px var(--font-ui); }
+.pin span { transform: rotate(45deg); }
+.pin.a { background: var(--ok); color: #06250f; } .pin.b { background: var(--warn); }
+.hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.row + .row { margin-top: 10px; }
+label { display: inline-flex; align-items: center; gap: 6px; }
+label span.k { color: var(--muted); }
+input[type=number], input[type=text], select { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; }
+input[type=text] { min-width: 220px; flex: 1; }
+input[type=range] { accent-color: var(--accent); width: 150px; }
+input[type=checkbox] { accent-color: var(--accent); }
+button { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; font: 500 13px var(--font-ui); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.on { background: var(--ok); border-color: var(--ok); color: #06250f; }
+button.pick { border-color: var(--accent); color: #9fc3ff; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.val { font-family: var(--font-num); font-variant-numeric: tabular-nums; min-width: 3.5ch; display: inline-block; text-align: right; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.stat { background: var(--panel-2); border-radius: 8px; padding: 8px 10px; }
+.stat .k { color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.stat .v { font: 700 18px var(--font-num); font-variant-numeric: tabular-nums; }
+.stat .v.small { font-size: 13px; font-weight: 500; font-family: var(--font-ui); word-break: break-word; }
+#progress { width: 100%; }
+.timeline { max-height: 220px; overflow: auto; display: grid; gap: 4px; }
+.tl { display: grid; grid-template-columns: 64px 44px 1fr; gap: 10px; align-items: center; padding: 4px 8px; border-radius: 6px; background: var(--panel-2); }
+.tl.cur { outline: 1px solid var(--accent); }
+.tl .km { font: 500 12px var(--font-num); color: var(--muted); }
+.tl .sg { width: 34px; height: 34px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 5px var(--sign-red); display: grid; place-items: center; font: 700 14px var(--font-num); color: #000; }
+.tl .sg.none { box-shadow: inset 0 0 0 5px #777; color: #777; }
+.tl .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#log { height: 140px; overflow: auto; background: #0b0e12; border-radius: 8px; padding: 8px 10px; font: 12px/1.5 var(--font-num); color: #a9b4c2; white-space: pre-wrap; word-break: break-word; }
+#log .e { color: #ff7b7b; } #log .g { color: var(--ok); }
+</style>
+</head>
+<body>
+<h1>OmniSpeed Simulator</h1>
+<p class="sub">Bản đồ OpenStreetMap thật · tìm đường OSRM · xe chạy theo tuyến · thuật toán OSPRoadData (ô 1 km, Overpass, chọn đường, đọc <code>maxspeed</code>) chạy ngay trên trình duyệt. Mở <a href="mockup.html" target="_blank" style="color:var(--accent)">mockup.html</a> ở tab khác và bật Live để xem màn iPhone + CarPlay chạy theo.</p>
+
+<div class="wrap">
+  <div class="phone" id="phone">
+    <div class="screen">
+      <div class="flash" id="flash"></div>
+      <div class="speed" id="speed">--</div>
+      <div class="unit">km/h</div>
+      <div class="road" id="road"></div>
+      <div class="sign none" id="sign">–</div>
+      <div class="status"><div id="st1">Đang tìm GPS…</div><div id="st2">OpenStreetMap</div></div>
+      <div class="gear" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19.4 13a7.8 7.8 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3.3H9l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.8 7.8 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.6 7.6 0 0 0 1.7 1l.4 2.6h6l.4-2.6a7.6 7.6 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></div>
+      <div class="off" id="off" hidden></div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel">
+      <h2>Tuyến đường</h2>
+      <div class="row">
+        <button id="pickA" class="pick">Ⓐ Chọn điểm đi trên bản đồ</button>
+        <input type="text" id="qA" placeholder="hoặc gõ tên nơi đi (Nominatim)…" value="10.801907, 106.639974">
+        <button id="findA">Tìm</button>
+      </div>
+      <div class="row">
+        <button id="pickB" class="pick">Ⓑ Chọn điểm đến trên bản đồ</button>
+        <input type="text" id="qB" placeholder="hoặc gõ tên nơi đến…" value="Chợ Bến Thành">
+        <button id="findB">Tìm</button>
+      </div>
+      <div class="row">
+        <button id="route" class="primary">Tìm đường (OSRM)</button>
+        <span id="routeInfo" class="hint" style="margin:0">Chưa có tuyến.</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="map"></div>
+      <div class="hint">Kéo Ⓐ / Ⓑ để đổi điểm · đường mảnh xám = đường đã tải từ Overpass (sáng = có maxspeed) · đường xanh đậm = đang chạy · ô vuông = ô 1 km</div>
+    </div>
+
+    <div class="panel">
+      <h2>Chạy thử</h2>
+      <div class="row">
+        <button id="play" class="primary">▶ Chạy</button>
+        <button id="reset">⟲ Về điểm đi</button>
+        <label><span class="k">Tốc độ xe</span><input type="range" id="spd" min="0" max="140" value="60"><span class="val" id="spdv">60</span> km/h</label>
+        <label><span class="k">Thời gian</span><select id="tscale"><option value="1">×1</option><option value="3" selected>×3</option><option value="10">×10</option><option value="30">×30</option></select></label>
+        <label><span class="k">Sai số GPS</span><input type="range" id="acc" min="3" max="150" value="8"><span class="val" id="accv">8</span> m</label>
+        <label><input type="checkbox" id="follow" checked> Bản đồ theo xe</label>
+        <label><input type="checkbox" id="landscape"> Màn ngang</label>
+      </div>
+      <div class="row"><input type="range" id="progress" min="0" max="1000" value="0"><span class="hint" id="progInfo" style="margin:0">0.0 km</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>Cài đặt (Settings &gt; OmniSpeed)</h2>
+      <div class="row">
+        <label><input type="checkbox" id="enabled" checked> Bật OmniSpeed</label>
+        <label><input type="checkbox" id="showLimit" checked> Hiện biển</label>
+        <label><input type="checkbox" id="showRoad" checked> Hiện tên đường</label>
+        <label><input type="checkbox" id="warn" checked> Cảnh báo</label>
+        <label><span class="k">Ngưỡng</span><input type="range" id="over" min="-10" max="10" value="5"><span class="val" id="overv">5</span></label>
+        <label><input type="checkbox" id="classDefaults" checked> Mặc định theo loại đường khi không có biển</label>
+      </div>
+      <div class="row">
+        <label><span class="k">Máy chủ Overpass</span>
+          <select id="server">
+            <option value="osmapi" selected>api.openstreetmap.org (map call)</option>
+            <option value="https://overpass-api.de/api/interpreter">overpass-api.de</option>
+            <option value="https://overpass.kumi.systems/api/interpreter">overpass.kumi.systems</option>
+            <option value="https://maps.mail.ru/osm/tools/overpass/api/interpreter">maps.mail.ru</option>
+          </select></label>
+        <label><select id="lang"><option value="vi">Tiếng Việt</option><option value="en">English</option></select></label>
+        <button id="clear">Xóa cache</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Thuật toán</h2>
+      <div class="stats">
+        <div class="stat"><div class="k">Ô hiện tại</div><div class="v small" id="cell">–</div></div>
+        <div class="stat"><div class="k">Đường trong ô</div><div class="v" id="nways">0</div></div>
+        <div class="stat"><div class="k">Cách đường</div><div class="v" id="dist">–</div></div>
+        <div class="stat"><div class="k">maxspeed thô</div><div class="v small" id="raw">–</div></div>
+        <div class="stat"><div class="k">Giới hạn</div><div class="v" id="lim">–</div></div>
+        <div class="stat"><div class="k">Biển gần nhất dọc đường (khi không có)</div><div class="v small" id="inh">–</div></div>
+        <div class="stat"><div class="k">Biển kế tiếp trên tuyến</div><div class="v small" id="next">–</div></div>
+        <div class="stat"><div class="k">Cache</div><div class="v small" id="cache">0 ô</div></div>
+      </div>
+      <h2 style="margin-top:12px">Biển đã gặp dọc tuyến</h2>
+      <div class="timeline" id="timeline"><div class="hint">Chạy thử để ghi lại các lần biển đổi.</div></div>
+      <h2 style="margin-top:12px">Log</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+//  Port of App/OSPRoadData.m - keep the numbers identical to the app.
+// ============================================================================
+const CELL_DEG = 0.01, FETCH_RADIUS = 1000, MATCH_MAX = 45, LOOKAHEAD = 700, RETRY = 20, CACHE_DAYS = 30;
+const HIGHWAYS = "motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link";
+
+const $ = id => document.getElementById(id);
+const VI = () => $('lang').value === 'vi';
+const T = (vi, en) => VI() ? vi : en;
+const log = (msg, cls) => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = new Date().toTimeString().slice(0, 8) + '  ' + msg; const l = $('log'); l.appendChild(d); l.scrollTop = l.scrollHeight; while (l.children.length > 300) l.removeChild(l.firstChild); };
+
+function cellKey(lat, lon) { return Math.floor(lat / CELL_DEG) + '_' + Math.floor(lon / CELL_DEG); }
+function cellCentre(key) { const [a, b] = key.split('_').map(Number); return { lat: (a + .5) * CELL_DEG, lon: (b + .5) * CELL_DEG }; }
+function cellBounds(key) { const [a, b] = key.split('_').map(Number); return [[a * CELL_DEG, b * CELL_DEG], [(a + 1) * CELL_DEG, (b + 1) * CELL_DEG]]; }
+function ahead(lat, lon, course, m) { const r = course * Math.PI / 180; return { lat: lat + m * Math.cos(r) / 111320, lon: lon + m * Math.sin(r) / (111320 * Math.cos(lat * Math.PI / 180)) }; }
+function metres(a, b) { return Math.hypot((a[0] - b[0]) * 111320, (a[1] - b[1]) * 111320 * Math.cos(a[0] * Math.PI / 180)); }
+function bearingOf(a, b) { const dx = (b[1] - a[1]) * Math.cos(a[0] * Math.PI / 180), dy = b[0] - a[0]; return (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360; }
+
+// OSPParseMaxspeed
+function parseMaxspeed(v) {
+  if (typeof v !== 'string' || !v.length) return -1;
+  let s = v.toLowerCase().trim();
+  const sep = s.search(/[;|]/); if (sep >= 0) s = s.slice(0, sep);
+  const m = s.match(/^\s*(\d+)/);
+  if (m) { let n = +m[1]; if (s.includes('mph')) n = Math.round(n * 1.609344); return (n > 0 && n <= 200) ? n : -1; }
+  if (s === 'none' || s === 'signals' || s === 'variable') return -1;
+  if (s === 'walk') return 5;
+  const vn = s.startsWith('vn:');
+  if (s.endsWith(':urban')) return vn ? 60 : 50;
+  if (s.endsWith(':rural')) return vn ? 80 : 90;
+  if (s.endsWith(':motorway')) return vn ? 120 : 130;
+  if (s.endsWith(':living_street')) return 20;
+  return -1;
+}
+function wayLimit(tags) { let n = parseMaxspeed(tags.maxspeed); if (n < 0) n = parseMaxspeed(tags['maxspeed:forward']); if (n < 0) n = parseMaxspeed(tags['maxspeed:backward']); return n; }
+function rawMaxspeed(tags) { return tags.maxspeed ?? tags['maxspeed:forward'] ?? tags['maxspeed:backward'] ?? '(không có)'; }
+
+function compact(json) {
+  const out = [];
+  for (const el of json.elements || []) {
+    if (el.type !== 'way') continue;
+    const tags = el.tags || {};
+    const pts = (el.geometry || []).filter(g => g.lat != null && g.lon != null).map(g => [g.lat, g.lon]);
+    if (pts.length < 2) continue;
+    const ow = tags.oneway || '';
+    out.push({ id: el.id, n: tags.name || tags.ref || '', l: wayLimit(tags), o: ow === 'yes' || ow === '1' || tags.junction === 'roundabout' || tags.highway === 'motorway', p: pts, raw: rawMaxspeed(tags), hw: tags.highway });
+  }
+  return out;
+}
+
+// OSM API /map?bbox=... (XML: nodes + ways) -> the same compact form. Filters highway=* here, since the API has no query.
+const HIGHWAY_SET = new Set(HIGHWAYS.split('|'));
+function compactFromOsmXml(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.querySelector('parsererror')) throw new Error('XML không hợp lệ');
+  const nodes = new Map();
+  for (const n of doc.getElementsByTagName('node')) nodes.set(n.getAttribute('id'), [+n.getAttribute('lat'), +n.getAttribute('lon')]);
+  const out = [];
+  for (const w of doc.getElementsByTagName('way')) {
+    const tags = {};
+    for (const t of w.getElementsByTagName('tag')) tags[t.getAttribute('k')] = t.getAttribute('v');
+    if (!HIGHWAY_SET.has(tags.highway)) continue;
+    const pts = [];
+    for (const nd of w.getElementsByTagName('nd')) { const p = nodes.get(nd.getAttribute('ref')); if (p) pts.push(p); }
+    if (pts.length < 2) continue;
+    const ow = tags.oneway || '';
+    out.push({ id: +w.getAttribute('id'), n: tags.name || tags.ref || '', l: wayLimit(tags), o: ow === 'yes' || ow === '1' || tags.junction === 'roundabout' || tags.highway === 'motorway', p: pts, raw: rawMaxspeed(tags), hw: tags.highway });
+  }
+  return out;
+}
+async function fetchOsmApi(c) {
+  const dLat = FETCH_RADIUS / 111320, dLon = dLat / Math.cos(c.lat * Math.PI / 180);
+  const bbox = `${(c.lon - dLon).toFixed(5)},${(c.lat - dLat).toFixed(5)},${(c.lon + dLon).toFixed(5)},${(c.lat + dLat).toFixed(5)}`;
+  const res = await fetch('https://api.openstreetmap.org/api/0.6/map?bbox=' + bbox);
+  if (!res.ok) throw new Error('OSM API HTTP ' + res.status + (res.status === 400 ? ' (ô quá nhiều node)' : ''));
+  return compactFromOsmXml(await res.text());
+}
+
+function segDist(p, a, b) {
+  const kx = 111320 * Math.cos(p.lat * Math.PI / 180), ky = 111320;
+  const ax = (a[1] - p.lon) * kx, ay = (a[0] - p.lat) * ky, bx = (b[1] - p.lon) * kx, by = (b[0] - p.lat) * ky;
+  const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
+  const cx = ax + t * dx, cy = ay + t * dy;
+  return { d: Math.hypot(cx, cy), bearing: (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360, t };
+}
+const turnAngle = (a, b) => Math.abs(((a - b + 540) % 360) - 180);   // 0..180
+
+// Matching: a crossing side street should not win over the main road at a junction (score = metres + penalty),
+// and the way we are already on keeps a head start so the match does not flicker.
+const CLASS_PENALTY = { service: 20, living_street: 14, residential: 10, unclassified: 6, tertiary_link: 4, secondary_link: 4, primary_link: 4, trunk_link: 4, motorway_link: 4 };
+const STICKY = 12;
+let lastWay = null;
+
+// Legal default when the road carries no sign - Vietnam, built-up area (Thông tư 31/2019): dual carriageway or
+// one-way with 2+ lanes 60, other roads 50; expressway 120; living street 20. Dual carriageways are mapped in OSM
+// as two one-way ways, so "oneway" is the practical test. Service roads (car parks, alleys) get nothing.
+function classDefault(w) {
+  switch (w.hw) {
+    case 'motorway': case 'motorway_link': return 120;
+    case 'living_street': return 20;
+    case 'service': return -1;
+    case 'trunk': case 'primary': case 'secondary': case 'tertiary':
+    case 'trunk_link': case 'primary_link': case 'secondary_link': case 'tertiary_link':
+      return w.o ? 60 : 50;
+    default: return 50;   // unclassified, residential
+  }
+}
+
+// ============================================================================
+//  Road data store (memory + localStorage as the disk cache)
+// ============================================================================
+const roads = {
+  cells: {}, pending: new Set(), failedAt: {}, lastError: null, haveCell: false,
+  server() { return $('server').value; },
+  cell(key) {
+    if (this.cells[key]) return this.cells[key];
+    try {
+      const raw = localStorage.getItem('osp_cell_' + key);
+      if (raw) { const o = JSON.parse(raw); if (Date.now() - o.t < CACHE_DAYS * 864e5) { this.cells[key] = o.ways; drawCell(key); return o.ways; } }
+    } catch (e) {}
+    this.fetch(key);
+    return null;
+  },
+  async fetch(key) {
+    if (this.pending.has(key)) return;
+    if (this.failedAt[key] && Date.now() - this.failedAt[key] < RETRY * 1000) return;
+    this.pending.add(key); drawCell(key);
+    const c = cellCentre(key), srv = this.server();
+    try {
+      const t0 = performance.now();
+      let ways, from = srv === 'osmapi' ? 'api.openstreetmap.org' : new URL(srv).host;
+      if (srv === 'osmapi') ways = await fetchOsmApi(c);
+      else {
+        const q = `[out:json][timeout:20];way(around:${FETCH_RADIUS},${c.lat.toFixed(5)},${c.lon.toFixed(5)})["highway"~"^(${HIGHWAYS})$"];out tags geom;`;
+        try {
+          const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 25000);
+          const res = await fetch(srv, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q), signal: ctl.signal });
+          clearTimeout(timer);
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          ways = compact(await res.json());
+        } catch (e) {
+          // Overpass down / blocked: the OSM API itself still answers (heavier, but authoritative)
+          log(`ô ${key}: Overpass lỗi (${e.name === 'AbortError' ? 'quá 25 s' : e.message}) → thử api.openstreetmap.org`, 'e');
+          ways = await fetchOsmApi(c); from = 'api.openstreetmap.org (dự phòng)';
+        }
+      }
+      log(`ô ${key}: ${ways.length} đường (${ways.filter(w => w.l > 0).length} có maxspeed), ${Math.round(performance.now() - t0)} ms, ${from}`, 'g');
+      this.cells[key] = ways; delete this.failedAt[key]; this.lastError = null;
+      try { localStorage.setItem('osp_cell_' + key, JSON.stringify({ t: Date.now(), ways })); } catch (e) {}
+    } catch (e) {
+      this.failedAt[key] = Date.now(); this.lastError = e.message;
+      log(`ô ${key}: lỗi ${e.message}`, 'e');
+    }
+    this.pending.delete(key); drawCell(key);
+    update();
+  },
+  roadAt(fix) {
+    const key = cellKey(fix.lat, fix.lon);
+    const ways = this.cell(key);
+    this.haveCell = !!ways;
+    if (fix.course >= 0 && fix.speed > 3) { const a = ahead(fix.lat, fix.lon, fix.course, LOOKAHEAD); const ak = cellKey(a.lat, a.lon); if (ak !== key) this.cell(ak); }
+    if (!ways) return null;
+    const haveCourse = fix.course >= 0 && fix.speed > 3;
+    let best = null, bestScore = 1e9, bestDist = 0, bestSeg = 0, bestT = 0, bestBearing = 0;
+    for (const w of ways) for (let i = 0; i + 1 < w.p.length; i++) {
+      const { d, bearing, t } = segDist(fix, w.p[i], w.p[i + 1]);
+      if (d > MATCH_MAX) continue;
+      let score = d + (CLASS_PENALTY[w.hw] || 0);            // a side street crossing the main road scores worse
+      if (haveCourse) { let diff = turnAngle(fix.course, bearing); if (!w.o && diff > 90) diff = 180 - diff; score += diff * 0.5; }
+      if (w === lastWay) score -= STICKY;                      // stay on the road we are on unless clearly off it
+      if (score < bestScore) { bestScore = score; best = w; bestDist = d; bestSeg = i; bestT = t; bestBearing = bearing; }
+    }
+    lastWay = best;
+    if (!best) return null;
+    // travelling forward along the way's point order? (unknown course: forward unless it is clearly against a one-way)
+    const forward = haveCourse ? turnAngle(fix.course, bestBearing) <= 90 : true;
+    return { way: best, name: best.n, limit: best.l, distance: bestDist, seg: bestSeg, t: bestT, forward };
+  },
+
+  // ---- no maxspeed on this way: the sign in force on THIS ROAD ---------------------------------------------
+  // Spatial hash of every point of every loaded way (~5 m bins), rebuilt when the set of cells changes.
+  grid: null, cellCount: 0,
+  gridKey(lat, lon) { return Math.round(lat * 20000) + ':' + Math.round(lon * 20000); },
+  ensureIndex() {
+    const n = Object.keys(this.cells).length;
+    if (this.grid && n === this.cellCount) return;
+    this.cellCount = n; this.grid = new Map();
+    for (const key in this.cells) for (const w of this.cells[key]) for (const p of w.p) {
+      const k = this.gridKey(p[0], p[1]); let a = this.grid.get(k); if (!a) this.grid.set(k, a = new Set()); a.add(w);
+    }
+  },
+  waysAt(p) {   // ways with a point within one bin of p
+    const out = new Set(), la = Math.round(p[0] * 20000), lo = Math.round(p[1] * 20000);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const s = this.grid.get((la + i) + ':' + (lo + j)); if (s) s.forEach(x => out.add(x)); }
+    return out;
+  },
+  // Walk from the car along `from` in one direction (dir +1 = point order, -1 = reverse) to the end of the way,
+  // then continue along THE SAME ROAD only: a way with the same name, or an unnamed link in between (never a
+  // differently named road, so a side street's 20 can never leak in); among those the straightest (< MAX_TURN).
+  // Stops at the first way with a maxspeed, after WALK_MAX metres, or when the road ends / changes name.
+  walkRoad(from, seg, t, dir) {
+    const MAX_TURN = 70, WALK_MAX = 3000;
+    this.ensureIndex();
+    const visited = new Set([from]);
+    const roadName = from.n;                 // '' = we are on an unnamed link: follow unnamed ways only
+    let way = from, pts = from.p, total = 0;
+    // distance from the car to the next point in the travel direction, then to the end of the way
+    let i = dir > 0 ? seg + 1 : seg;
+    const carPt = [pts[seg][0] + (pts[seg + 1][0] - pts[seg][0]) * t, pts[seg][1] + (pts[seg + 1][1] - pts[seg][1]) * t];
+    total += metres(carPt, pts[i]);
+    while (i + dir >= 0 && i + dir < pts.length) { total += metres(pts[i], pts[i + dir]); i += dir; }
+    let endPt = pts[i], inBearing = bearingOf(pts[i - dir], pts[i]);
+    for (let hops = 0; hops < 40 && total <= WALK_MAX; hops++) {
+      let best = null, bestTurn = 1e9;
+      for (const cand of this.waysAt(endPt)) {
+        if (visited.has(cand)) continue;
+        if (cand.n !== roadName && cand.n !== '') continue;   // another road: not ours
+        const k = cand.p.findIndex(p => metres(p, endPt) < 3);
+        if (k < 0) continue;
+        for (const d of [1, -1]) {
+          if (d < 0 && cand.o) continue;                       // never against a one-way
+          if (k + d < 0 || k + d >= cand.p.length) continue;
+          const turn = turnAngle(inBearing, bearingOf(cand.p[k], cand.p[k + d]));
+          if (turn > MAX_TURN) continue;
+          const score = cand.n === roadName ? turn - 1000 : turn;   // same name wins over an unnamed link, then straightest
+          if (score < bestTurn) { bestTurn = score; best = { cand, k, d }; }
+        }
+      }
+      if (!best) return null;
+      const { cand, k, d } = best;
+      visited.add(cand); way = cand; pts = cand.p;
+      if (cand.l > 0 && cand.n === roadName) return { limit: cand.l, distance: total, name: cand.n };   // a link's own tag is not the road's
+      let j = k;
+      while (j + d >= 0 && j + d < pts.length) { total += metres(pts[j], pts[j + d]); j += d; }
+      endPt = pts[j]; inBearing = bearingOf(pts[j - d], pts[j]);
+    }
+    return null;
+  },
+  // The limit in force on this road when this way carries no tag:
+  //   1. the last sign passed on this road (walk back along the same road - what the law says applies)
+  //   2. a sign further ahead on the same road (OSM often tags only one segment of a street)
+  //   3. the legal default for the road class (Vietnam, built-up area), if enabled in Settings
+  nearestLimit(r) {
+    const dir = r.forward ? 1 : -1;
+    const b = this.walkRoad(r.way, r.seg, r.t, -dir);   // walking back along a one-way is fine: we are only reading the map
+    if (b) return Object.assign(b, { src: 'behind', how: T('biển đã qua, cùng đường', 'sign passed, same road') });
+    const a = this.walkRoad(r.way, r.seg, r.t, dir);
+    if (a) return Object.assign(a, { src: 'ahead', how: T('biển phía trước, cùng đường', 'sign ahead, same road') });
+    if (!$('classDefaults').checked) return null;
+    const d = classDefault(r.way);
+    return d > 0 ? { limit: d, distance: 0, name: r.way.n, src: 'default', how: T('mặc định theo loại đường', 'road-class default') } : null;
+  },
+  clear() {
+    this.cells = {}; this.failedAt = {}; waysLayer.clearLayers(); cellsLayer.clearLayers(); labelsLayer.clearLayers(); wayLines.clear(); cellRects.clear();
+    try { Object.keys(localStorage).filter(k => k.startsWith('osp_cell_')).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    log('đã xóa cache');
+  },
+  count() { try { return Object.keys(localStorage).filter(k => k.startsWith('osp_cell_')).length; } catch (e) { return Object.keys(this.cells).length; } }
+};
+
+// ============================================================================
+//  Map (Leaflet + OSM tiles)
+// ============================================================================
+if (typeof L === 'undefined') {
+  document.getElementById('map').innerHTML = '<div style="padding:24px;color:#ff7b7b;font:14px var(--font-ui)">Không tải được thư viện Leaflet từ cdnjs.cloudflare.com - kiểm tra mạng / tường lửa rồi tải lại trang.</div>';
+  throw new Error('Leaflet not loaded');
+}
+const map = L.map('map', { zoomControl: true }).setView([10.801907, 106.639974], 16);
+// Tile sources, same as openstreetmap.org's layer switcher: Standard (default), Transport (layers=T - Thunderforest,
+// needs a free API key from thunderforest.com), plus CARTO as a fallback that never checks the referer.
+let tfKey = ''; try { tfKey = localStorage.getItem('osp_tf_key') || ''; } catch (e) {}
+const TILES = {
+  osm:   { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opt: { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } },
+  transport: { url: 'https://{s}.tile.thunderforest.com/transport/{z}/{x}/{y}{r}.png?apikey={key}', opt: { maxZoom: 19, subdomains: 'abc', attribution: '&copy; <a href="https://www.thunderforest.com/">Thunderforest</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' } },
+  carto: { url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', opt: { maxZoom: 19, subdomains: 'abcd', attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' } },
+};
+let tileLayer = null, tileErrors = 0;
+function setTiles(name) {
+  if (tileLayer) map.removeLayer(tileLayer);
+  tileErrors = 0;
+  const opt = Object.assign({ key: tfKey }, TILES[name].opt);
+  tileLayer = L.tileLayer(TILES[name].url, opt).addTo(map);
+  tileLayer.on('tileerror', () => { if (++tileErrors === 3) log(`tile ${name}: không tải được (mạng / bị chặn${name === 'transport' ? ' / thiếu API key' : ''}) - thử đổi nền bản đồ`, 'e'); });
+  tileLayer.on('load', () => { if (!tileLayer._loggedOk) { tileLayer._loggedOk = true; log(`nền bản đồ ${name} đã hiện`, 'g'); } });
+}
+setTiles('osm');
+const tileCtl = L.control({ position: 'topright' });
+tileCtl.onAdd = () => {
+  const d = L.DomUtil.create('div');
+  d.innerHTML = '<div style="background:#fff;padding:6px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.3);display:grid;gap:4px">'
+    + '<select id="tiles" style="font:12px var(--font-ui);padding:4px;border-radius:6px"><option value="osm">OSM chuẩn</option><option value="transport">Giao thông (Transport)</option><option value="carto">CARTO</option></select>'
+    + '<input id="tfkey" type="text" placeholder="API key Thunderforest" value="' + tfKey.replace(/"/g, '') + '" style="font:11px var(--font-ui);padding:3px;width:150px;display:none">'
+    + '<label style="font:11px var(--font-ui);color:#333;display:flex;gap:4px;align-items:center"><input id="mslabels" type="checkbox" checked> nhãn maxspeed</label></div>';
+  L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+  const sel = d.querySelector('#tiles'), key = d.querySelector('#tfkey');
+  sel.onchange = () => { key.style.display = sel.value === 'transport' ? '' : 'none'; setTiles(sel.value); if (sel.value === 'transport' && !tfKey) log('Lớp Giao thông (Thunderforest) cần API key miễn phí: thunderforest.com → dán vào ô dưới menu', 'e'); };
+  key.onchange = () => { tfKey = key.value.trim(); try { localStorage.setItem('osp_tf_key', tfKey); } catch (e) {} setTiles('transport'); };
+  d.querySelector('#mslabels').onchange = e => { if (e.target.checked) labelsLayer.addTo(map); else map.removeLayer(labelsLayer); };
+  return d;
+};
+tileCtl.addTo(map);
+// The container can be measured before fonts / CSS settle: re-measure once everything is in
+window.addEventListener('load', () => setTimeout(() => {
+  map.invalidateSize();
+  const pane = document.querySelector('.leaflet-tile-pane');
+  if (pane && getComputedStyle(pane).position !== 'absolute') log('CSS của Leaflet (cdnjs) không tải được - bản đồ sẽ vỡ bố cục', 'e');
+  log(`khung bản đồ ${$('map').clientWidth}×${$('map').clientHeight} px, zoom ${map.getZoom()}`);
+}, 300));
+window.addEventListener('error', e => log('JS: ' + e.message + ' (' + (e.filename || '').split('/').pop() + ':' + e.lineno + ')', 'e'));
+window.addEventListener('unhandledrejection', e => log('Promise: ' + (e.reason && e.reason.message || e.reason), 'e'));
+const cellsLayer = L.layerGroup().addTo(map), waysLayer = L.layerGroup().addTo(map), routeLayer = L.layerGroup().addTo(map);
+const labelsLayer = L.layerGroup().addTo(map);   // small limit signs at the middle of every way that has a maxspeed
+const wayLines = new Map(), cellRects = new Map();
+let highlighted = null;
+const msIcon = (l, raw) => L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html: `<div title="maxspeed=${raw}" style="width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 3px #db1f1f;display:grid;place-items:center;font:700 10px var(--font-num);color:#000">${l}</div>` });
+function labelsVisible() { return map.getZoom() >= 15; }
+map.on('zoomend', () => { const on = labelsVisible(); labelsLayer.eachLayer(m => { const el = m.getElement(); if (el) el.style.display = on ? '' : 'none'; }); });
+
+function drawCell(key) {
+  const color = roads.pending.has(key) ? '#d08a2a' : roads.failedAt[key] ? '#e03030' : roads.cells[key] ? '#2c9a5b' : '#777';
+  let r = cellRects.get(key);
+  if (!r) { r = L.rectangle(cellBounds(key), { weight: 1, fill: false, color, dashArray: '3 3', interactive: false }).addTo(cellsLayer); cellRects.set(key, r); }
+  else r.setStyle({ color });
+  if (roads.cells[key] && !wayLines.has(key)) {
+    const lines = roads.cells[key].map(w => L.polyline(w.p, { weight: w.l > 0 ? 3 : 2, color: w.l > 0 ? '#5aa0ff' : '#8a8f98', opacity: w.l > 0 ? .55 : .35, interactive: true })
+      .bindTooltip(`${w.n || '∅'} · ${w.hw} · maxspeed ${w.raw}${w.o ? ' · 1 chiều' : ''}`, { sticky: true }).addTo(waysLayer));
+    wayLines.set(key, lines);
+    for (const w of roads.cells[key]) {
+      if (w.l <= 0) continue;
+      const mid = w.p[Math.floor(w.p.length / 2)];
+      const m = L.marker(mid, { icon: msIcon(w.l, w.raw), interactive: false }).addTo(labelsLayer);
+      const el = m.getElement(); if (el && !labelsVisible()) el.style.display = 'none';
+    }
+  }
+}
+function highlight(way) {
+  if (highlighted && highlighted.way !== way) { highlighted.line.setStyle({ weight: highlighted.way.l > 0 ? 3 : 2, color: highlighted.way.l > 0 ? '#5aa0ff' : '#8a8f98', opacity: highlighted.way.l > 0 ? .55 : .35 }); highlighted = null; }
+  if (way && !highlighted) {
+    for (const key in roads.cells) { const i = roads.cells[key].indexOf(way); if (i >= 0 && wayLines.get(key)) { const line = wayLines.get(key)[i]; line.setStyle({ weight: 7, color: '#1f6fff', opacity: .95 }); line.bringToFront(); highlighted = { way, line }; break; } }
+  }
+}
+
+// A / B pins, car marker
+const pinIcon = cls => L.divIcon({ className: '', html: `<div class="pin ${cls}"><span>${cls.toUpperCase()}</span></div>`, iconSize: [0, 0] });
+const A = L.marker([10.801907, 106.639974], { draggable: true, icon: pinIcon('a') }).addTo(map);
+const B = L.marker([10.772500, 106.698000], { draggable: true, icon: pinIcon('b') }).addTo(map);
+A.on('dragend', () => { $('qA').value = fmt(A.getLatLng()); findRoute(); });
+B.on('dragend', () => { $('qB').value = fmt(B.getLatLng()); findRoute(); });
+const fmt = ll => `${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}`;
+const carIcon = L.divIcon({ className: 'car-icon', html: '<div><svg id="carSvg" width="18" height="18" viewBox="-9 -9 18 18"><path d="M0 -8 L6 6 L0 3 L-6 6 Z" fill="#ff4040"/></svg></div>', iconSize: [0, 0] });
+const carMarker = L.marker([10.801907, 106.639974], { icon: carIcon, interactive: false, zIndexOffset: 1000 }).addTo(map);
+
+let picking = null;
+$('pickA').onclick = () => { picking = 'A'; $('pickA').classList.add('on'); log(T('bấm lên bản đồ để đặt điểm đi', 'click the map to set the start')); };
+$('pickB').onclick = () => { picking = 'B'; $('pickB').classList.add('on'); log(T('bấm lên bản đồ để đặt điểm đến', 'click the map to set the destination')); };
+map.on('click', e => {
+  if (!picking) return;
+  (picking === 'A' ? A : B).setLatLng(e.latlng);
+  $(picking === 'A' ? 'qA' : 'qB').value = fmt(e.latlng);
+  $('pickA').classList.remove('on'); $('pickB').classList.remove('on'); picking = null;
+  findRoute();
+});
+
+// Nominatim search
+async function geocode(q) {
+  const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q), { headers: { 'Accept-Language': 'vi' } });
+  if (!res.ok) throw new Error('Nominatim HTTP ' + res.status);
+  const arr = await res.json();
+  if (!arr.length) throw new Error(T('không tìm thấy "' + q + '"', 'no result for "' + q + '"'));
+  return { lat: +arr[0].lat, lng: +arr[0].lon, name: arr[0].display_name };
+}
+async function findPoint(which) {
+  const q = $(which === 'A' ? 'qA' : 'qB').value.trim();
+  const m = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  try {
+    const p = m ? { lat: +m[1], lng: +m[2], name: q } : await geocode(q);
+    (which === 'A' ? A : B).setLatLng([p.lat, p.lng]);
+    log(`${which}: ${p.name}`, 'g');
+    return true;
+  } catch (e) { log(e.message, 'e'); return false; }
+}
+$('findA').onclick = async () => { if (await findPoint('A')) findRoute(); };
+$('findB').onclick = async () => { if (await findPoint('B')) findRoute(); };
+$('qA').onkeydown = e => { if (e.key === 'Enter') $('findA').click(); };
+$('qB').onkeydown = e => { if (e.key === 'Enter') $('findB').click(); };
+
+// ============================================================================
+//  Route (OSRM public demo server) -> polyline with cumulative distance
+// ============================================================================
+const route = { pts: [], cum: [], total: 0 };
+let routeLine = null;
+async function findRoute() {
+  const a = A.getLatLng(), b = B.getLatLng();
+  $('routeInfo').textContent = T('Đang tìm đường…', 'Routing…');
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('OSRM HTTP ' + res.status);
+    const j = await res.json();
+    if (j.code !== 'Ok' || !j.routes.length) throw new Error('OSRM: ' + (j.message || j.code));
+    const r = j.routes[0];
+    route.pts = r.geometry.coordinates.map(c => [c[1], c[0]]);
+    route.cum = [0]; for (let i = 1; i < route.pts.length; i++) route.cum.push(route.cum[i - 1] + metres(route.pts[i - 1], route.pts[i]));
+    route.total = route.cum[route.cum.length - 1];
+    if (routeLine) routeLayer.removeLayer(routeLine);
+    routeLine = L.polyline(route.pts, { color: '#ff9f1c', weight: 5, opacity: .8 }).addTo(routeLayer);
+    map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
+    $('routeInfo').textContent = `${(r.distance / 1000).toFixed(1)} km · ${Math.round(r.duration / 60)} ${T('phút theo OSRM', 'min by OSRM')} · ${route.pts.length} ${T('điểm', 'points')}`;
+    log(`tuyến: ${(r.distance / 1000).toFixed(1)} km`, 'g');
+    resetDrive();
+    prefetchRoute(0);
+  } catch (e) { $('routeInfo').textContent = e.message; log(e.message, 'e'); }
+}
+$('route').onclick = findRoute;
+
+// Cells along the next ~3 km of the route (the app only looks 700 m ahead; the demo warms up more so the drive is smooth)
+function prefetchRoute(from) {
+  const seen = new Set();
+  for (let i = 0; i < route.pts.length; i++) {
+    if (route.cum[i] < from || route.cum[i] > from + 3000) continue;
+    const k = cellKey(route.pts[i][0], route.pts[i][1]);
+    if (!seen.has(k)) { seen.add(k); roads.cell(k); }
+  }
+}
+
+// position along the route at distance s
+function routePos(s) {
+  const pts = route.pts, cum = route.cum;
+  if (!pts.length) return null;
+  if (s <= 0) return { lat: pts[0][0], lon: pts[0][1], course: pts.length > 1 ? bearingOf(pts[0], pts[1]) : -1 };
+  if (s >= route.total) { const n = pts.length - 1; return { lat: pts[n][0], lon: pts[n][1], course: bearingOf(pts[n - 1], pts[n]) }; }
+  let lo = 0, hi = cum.length - 1;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (cum[mid] <= s) lo = mid; else hi = mid; }
+  const f = (s - cum[lo]) / Math.max(cum[hi] - cum[lo], 1e-9);
+  return { lat: pts[lo][0] + (pts[hi][0] - pts[lo][0]) * f, lon: pts[lo][1] + (pts[hi][1] - pts[lo][1]) * f, course: bearingOf(pts[lo], pts[hi]) };
+}
+
+// ============================================================================
+//  Car + drive loop
+// ============================================================================
+const car = { lat: 10.801907, lon: 106.639974, speed: 60 / 3.6, course: -1, acc: 8, s: 0 };
+let road = null, inherited = null, playing = false, lastT = 0, warning = false, lastPrefetch = -1e9;
+
+// Next tagged road along the route ahead of s (loaded cells only, max 5 km) - what the driver will meet next
+function nextSignOnRoute(s) {
+  if (!route.total) return null;
+  let lastWay = null;
+  for (let i = 0; i < route.pts.length; i++) {
+    if (route.cum[i] <= s) continue;
+    if (route.cum[i] - s > 5000) break;
+    const ways = roads.cells[cellKey(route.pts[i][0], route.pts[i][1])];
+    if (!ways) continue;
+    const course = i > 0 ? bearingOf(route.pts[i - 1], route.pts[i]) : -1;
+    const r = roads.roadAt({ lat: route.pts[i][0], lon: route.pts[i][1], course, speed: 10 });
+    if (r && r.way !== lastWay) { lastWay = r.way; if (r.limit > 0 && r.way !== (road && road.way)) return { limit: r.limit, distance: route.cum[i] - s, name: r.name }; }
+  }
+  return null;
+}
+const timeline = []; let lastTL = null;
+
+function placeCar(s) {
+  car.s = Math.max(0, Math.min(route.total, s));
+  const p = routePos(car.s);
+  if (p) { car.lat = p.lat; car.lon = p.lon; car.course = p.course; }
+  carMarker.setLatLng([car.lat, car.lon]);
+  const svg = document.getElementById('carSvg'); if (svg) svg.style.transform = `rotate(${car.course < 0 ? 0 : car.course}deg)`;
+  if ($('follow').checked && playing) map.panTo([car.lat, car.lon], { animate: false });
+  $('progress').value = route.total ? Math.round(car.s / route.total * 1000) : 0;
+  $('progInfo').textContent = `${(car.s / 1000).toFixed(2)} / ${(route.total / 1000).toFixed(1)} km`;
+  if (car.s - lastPrefetch > 1500) { lastPrefetch = car.s; prefetchRoute(car.s); }
+}
+function resetDrive() { setPlaying(false); timeline.length = 0; lastTL = null; renderTimeline(); lastPrefetch = -1e9; placeCar(0); update(); }
+function setPlaying(on) { playing = on; $('play').textContent = on ? '⏸ Dừng' : '▶ Chạy'; $('play').classList.toggle('on', on); }
+$('play').onclick = () => { if (!route.pts.length) { log(T('chưa có tuyến', 'no route yet'), 'e'); return; } if (car.s >= route.total) placeCar(0); setPlaying(!playing); };
+$('reset').onclick = resetDrive;
+$('progress').oninput = e => { setPlaying(false); placeCar(e.target.value / 1000 * route.total); update(); };
+function tick(t) {
+  const dt = Math.min((t - lastT) / 1000, 0.25); lastT = t;
+  if (playing && route.total) {
+    placeCar(car.s + car.speed * dt * (+$('tscale').value));
+    update();
+    if (car.s >= route.total) { setPlaying(false); log(T('đã tới điểm đến', 'arrived'), 'g'); }
+  }
+  requestAnimationFrame(tick);
+}
+
+// ============================================================================
+//  Screen (OSPSpeedViewController.refresh)
+// ============================================================================
+function gpsSpeed() { return car.acc <= 100 ? Math.round(Math.max(car.speed, 0) * 3.6) : -1; }
+function update() {
+  road = car.acc <= 200 ? roads.roadAt({ lat: car.lat, lon: car.lon, course: car.course, speed: car.speed }) : null;
+  inherited = (road && road.limit <= 0) ? roads.nearestLimit(road) : null;
+  highlight(road ? road.way : null);
+  noteTimeline();
+  render();
+  broadcast();
+}
+function noteTimeline() {
+  const eff = road ? (road.limit > 0 ? road.limit : (inherited ? inherited.limit : -1)) : -1;
+  const key = road ? `${road.name}|${eff}|${!!inherited}` : 'off';
+  if (key === lastTL) return;
+  lastTL = key;
+  if (!route.total) return;
+  timeline.push({ s: car.s, name: road ? (road.name || T('Đường không tên', 'Unnamed road')) : T('(không ở trên đường)', '(off road)'), limit: eff,
+    inh: !!(road && road.limit <= 0 && inherited && inherited.src !== 'default'), def: !!(road && road.limit <= 0 && inherited && inherited.src === 'default'),
+    raw: road ? (road.limit > 0 ? road.way.raw : (inherited ? (inherited.src === 'default' ? `${T('mặc định', 'default')} · ${road.way.hw}` : `≈ ${inherited.how} · ${Math.round(inherited.distance)} m`) : road.way.raw)) : '' });
+  renderTimeline();
+}
+function renderTimeline() {
+  const el = $('timeline'); el.innerHTML = '';
+  if (!timeline.length) { el.innerHTML = '<div class="hint">' + T('Chạy thử để ghi lại các lần biển đổi.', 'Drive to record every limit change.') + '</div>'; return; }
+  timeline.forEach((t, i) => {
+    const d = document.createElement('div'); d.className = 'tl' + (i === timeline.length - 1 ? ' cur' : '');
+    d.innerHTML = `<span class="km">${(t.s / 1000).toFixed(2)} km</span><span class="sg${t.limit > 0 ? '' : ' none'}${t.inh ? ' inh' : ''}${t.def ? ' def' : ''}">${t.limit > 0 ? t.limit : '–'}</span><span class="nm">${t.name}${t.raw && t.raw !== '(không có)' ? ' <span style="color:var(--muted)">· ' + t.raw + '</span>' : ''}</span>`;
+    el.appendChild(d);
+  });
+  el.scrollTop = el.scrollHeight;
+}
+function render() {
+  const enabled = $('enabled').checked;
+  $('off').hidden = enabled;
+  $('off').innerHTML = T('OmniSpeed đang tắt.<br>Bật trong Cài đặt &gt; OmniSpeed.', 'OmniSpeed is off.<br>Turn it on in Settings &gt; OmniSpeed.');
+  for (const id of ['speed', 'road', 'sign', 'st1', 'st2']) $(id).style.visibility = enabled ? 'visible' : 'hidden';
+  if (!enabled) { setWarning(false); return; }
+
+  const spd = gpsSpeed();
+  $('speed').textContent = spd >= 0 ? spd : '--';
+  $('st1').textContent = spd >= 0 ? `GPS ±${car.acc} m` : T('Đang tìm GPS…', 'Looking for GPS…');
+  $('road').hidden = !$('showRoad').checked;
+  $('road').textContent = road ? (road.name || T('Đường không tên', 'Unnamed road')) : '';
+  let m;
+  if (roads.lastError && !road) m = T(`OpenStreetMap: lỗi tải (${roads.lastError})`, `OpenStreetMap: download failed (${roads.lastError})`);
+  else if (roads.pending.size && !roads.haveCell) m = T('OpenStreetMap: đang tải đường quanh đây…', 'OpenStreetMap: downloading nearby roads…');
+  else if (!roads.haveCell) m = 'OpenStreetMap';
+  else if (!road) m = T('OpenStreetMap: không ở trên đường', 'OpenStreetMap: not on a road');
+  else if (road.limit > 0) m = T(`OpenStreetMap: giới hạn ${road.limit} km/h`, `OpenStreetMap: limit ${road.limit} km/h`);
+  else if (inherited && inherited.src === 'default') m = T(`Chưa có biển trên OSM · mặc định ${inherited.limit} (${road.way.hw}${road.way.o ? ', một chiều/đường đôi' : ''})`, `No sign in OSM · default ${inherited.limit} (${road.way.hw}${road.way.o ? ', one-way/dual' : ''})`);
+  else if (inherited) m = T(`Chưa có biển ở đây · ${inherited.how}: ${inherited.limit} (${Math.round(inherited.distance)} m)`, `No sign here · ${inherited.how}: ${inherited.limit} (${Math.round(inherited.distance)} m)`);
+  else m = T('OpenStreetMap: đường này chưa có giới hạn', 'OpenStreetMap: no limit tagged on this road');
+  $('st2').textContent = m;
+  const eff = road ? (road.limit > 0 ? road.limit : (inherited ? inherited.limit : -1)) : -1;
+  const sign = $('sign');
+  sign.hidden = !$('showLimit').checked || !road;
+  sign.textContent = eff > 0 ? eff : '–';
+  sign.classList.toggle('none', eff <= 0);
+  sign.classList.toggle('inh', eff > 0 && road.limit <= 0 && inherited.src !== 'default');
+  sign.classList.toggle('def', eff > 0 && road.limit <= 0 && inherited.src === 'default');
+  setWarning($('warn').checked && eff > 0 && spd >= 0 && spd > eff + (+$('over').value));
+  const nx = nextSignOnRoute(car.s);
+  $('next').textContent = nx ? `${nx.limit} ${T('sau', 'in')} ${nx.distance >= 1000 ? (nx.distance / 1000).toFixed(1) + ' km' : Math.round(nx.distance) + ' m'} · ${nx.name || '∅'}` : '–';
+  $('inh').textContent = inherited ? `${inherited.limit} · ${inherited.src === 'default' ? '' : Math.round(inherited.distance) + ' m · '}${inherited.how}` : (road && road.limit > 0 ? T('(có biển tại chỗ)', '(sign here)') : '–');
+
+  $('cell').textContent = cellKey(car.lat, car.lon) + (roads.haveCell ? '' : T(' (chưa tải)', ' (not loaded)'));
+  $('nways').textContent = (roads.cells[cellKey(car.lat, car.lon)] || []).length;
+  $('dist').textContent = road ? road.distance.toFixed(1) + ' m' : '–';
+  $('raw').textContent = road ? `${road.way.raw}  [${road.way.hw}${road.way.o ? ', 1 chiều' : ''}]` : '–';
+  $('lim').textContent = road ? (road.limit > 0 ? road.limit + ' km/h' : T('không có', 'none')) : '–';
+  $('cache').textContent = roads.count() + T(' ô', ' cells') + (roads.pending.size ? ` · ${roads.pending.size} ${T('đang tải', 'loading')}` : '');
+}
+function setWarning(on) { if (on === warning) return; warning = on; $('speed').classList.toggle('warn', on); $('flash').classList.toggle('on', on); }
+
+// Mirror the screen state to mockup.html (iPhone + CarPlay renderings) over a BroadcastChannel
+let bc = null; try { bc = new BroadcastChannel('omnispeed'); } catch (e) {}
+function broadcast() {
+  if (!bc) return;
+  const eff = road ? (road.limit > 0 ? road.limit : (inherited ? inherited.limit : -1)) : -1;
+  bc.postMessage({ type: 'state', state: {
+    enabled: $('enabled').checked, speed: gpsSpeed(), gpsAcc: car.acc, limit: eff,
+    source: !road ? 'none' : road.limit > 0 ? 'sign' : (inherited ? inherited.src : 'none'),
+    road: road ? road.name : '', highway: road ? road.way.hw : '', oneway: road ? road.way.o : false,
+    dist: inherited ? Math.round(inherited.distance) : 0, warnOver: +$('over').value, lang: $('lang').value,
+  } });
+}
+
+// ============================================================================
+//  UI wiring
+// ============================================================================
+$('spd').oninput = e => { car.speed = e.target.value / 3.6; $('spdv').textContent = e.target.value; update(); };
+$('acc').oninput = e => { car.acc = +e.target.value; $('accv').textContent = e.target.value; update(); };
+$('over').oninput = e => { $('overv').textContent = e.target.value; update(); };
+for (const id of ['enabled', 'showLimit', 'showRoad', 'warn', 'lang', 'classDefaults']) $(id).onchange = update;
+$('landscape').onchange = e => $('phone').classList.toggle('landscape', e.target.checked);
+$('server').onchange = () => { roads.cells = {}; roads.failedAt = {}; roads.lastError = null; waysLayer.clearLayers(); cellsLayer.clearLayers(); labelsLayer.clearLayers(); wayLines.clear(); cellRects.clear(); highlighted = null; log('máy chủ: ' + $('server').options[$('server').selectedIndex].text); update(); };
+$('clear').onclick = () => { roads.clear(); highlighted = null; update(); };
+
+log('OmniSpeed simulator sẵn sàng - đang tìm tuyến mặc định Gò Vấp → Chợ Bến Thành.');
+roads.cell(cellKey(10.801907, 106.639974));   // show the roads around the start right away
+findRoute();
+requestAnimationFrame(t => { lastT = t; requestAnimationFrame(tick); });
+</script>
+</body>
+</html>

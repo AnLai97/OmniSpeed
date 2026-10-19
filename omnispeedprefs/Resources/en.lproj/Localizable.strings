@@ -1,0 +1,42 @@
+/* OmniSpeed – English */
+
+"LANGUAGE" = "Language";
+"HEADER_TAGLINE" = "GPS speed and the limit of the road you are on, from OpenStreetMap";
+"STATUS_ON" = "On";
+"STATUS_OFF" = "Off";
+"VERSION_FORMAT" = "Version: %@";
+"COPYRIGHT" = "Copyright © 2026 AnLai";
+"OK" = "OK";
+
+"GENERAL_FOOTER" = "Changes apply right away in the OmniSpeed app.";
+"ENABLE" = "Enable OmniSpeed";
+
+/* TWEAK SETTINGS */
+
+"DISPLAY_TITLE" = "Display";
+"DISPLAY_FOOTER" = "The limit sign shows in the top-right corner while the car is on a mapped road.";
+"SHOW_LIMIT" = "Show limit sign";
+"SHOW_ROAD" = "Show road name";
+"KEEP_AWAKE" = "Keep screen on";
+
+"WARN_TITLE" = "Over-limit warning";
+"WARN_FOOTER" = "The speed turns red and the screen edge flashes when you go over the limit.";
+"WARN" = "Warn";
+"WARN_OVER_TITLE" = "Warning threshold (km/h over the limit)";
+"WARN_OVER_FOOTER" = "Negative: warn before reaching the limit. For example 5: a 60 sign warns from 66 km/h.";
+
+"MAP_TITLE" = "Map data";
+"MAP_FOOTER" = "Limits come from OpenStreetMap (the road's maxspeed tag); an untagged segment uses the sign passed or ahead on the same road, and finally the legal default for the road class (built-up area: dual carriageway/one-way 60, other roads 50, expressway 120, living street 20). Roads around the car are downloaded in 1 km cells and kept for 30 days. Overpass servers are small and fast; api.openstreetmap.org is the main server, heavier (1-3 MB per cell) but always there - the app falls back to it when Overpass fails.";
+"CLASS_DEFAULTS" = "Road-class defaults";
+"SERVER" = "Data server";
+"SERVER_0" = "overpass-api.de";
+"SERVER_1" = "overpass.kumi.systems";
+"SERVER_2" = "maps.mail.ru";
+"SERVER_3" = "api.openstreetmap.org (main)";
+"CLEAR_CACHE" = "Clear downloaded map data";
+"CLEAR_CACHE_DONE" = "Map data cleared. The app downloads it again as you drive.";
+
+"APP_TITLE" = "App";
+"APP_FOOTER" = "The speed screen is the OmniSpeed app on the Home Screen. Siri / Shortcuts can open it with omnispeed://";
+"OPEN_APP" = "Open OmniSpeed";
+"OPEN_APP_FAILED" = "Could not open the OmniSpeed app. Reinstall the package or run uicache.";

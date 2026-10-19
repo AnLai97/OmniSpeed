@@ -1,0 +1,28 @@
+Package: com.anlai.omnispeed
+Name: OmniSpeed
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: Your speed and the road's speed limit, big on the iPhone screen.
+ Prop your iPhone on the dash and OmniSpeed turns it into a speed display:
+ your GPS speed in large digits, the speed limit of the road you are on as a
+ road sign, and the road's name. Limits come from OpenStreetMap, so it works
+ on any road the community has mapped - no navigation app needed.
+ .
+ Features:
+  - GPS speed in large, easy-to-read digits
+  - Speed limit sign for the road you are driving on, from OpenStreetMap
+  - Road name under the speed
+  - Red digits and a flashing frame when you go over the limit
+  - Adjustable warning threshold, from 10 km/h under to 10 km/h over
+  - Roads are downloaded once and kept on the phone for 30 days
+  - Screen stays awake; portrait and landscape
+ .
+ Set it up in Settings > OmniSpeed. Needs location access and an internet
+ connection the first time you drive a road.
+ .
+ Compatibility: iOS 15 and later, rootless jailbreaks (Dopamine, palera1n).
+Icon: file:///var/jb/Library/PreferenceBundles/OmniSpeedPrefs.bundle/PackageIcon.png
+Maintainer: AnLai <laihoangan123456@gmail.com>
+Author: AnLai <laihoangan123456@gmail.com>
+Section: Applications
+Depends: preferenceloader, firmware (>= 15.0)

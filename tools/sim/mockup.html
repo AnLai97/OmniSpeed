@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OmniSpeed Mockup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Inter+Tight:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one app state rendered on an iPhone and on a CarPlay display, controls above. Dark cockpit page.
+   The app screen: a 270° speed arc around rounded black digits (SF Rounded on iOS, Nunito here), the limit as
+   a real Vienna sign with a caption telling where it came from, road name in a pill, GPS/data as small chips. */
+:root {
+  --bg: #0f1216; --panel: #171b21; --panel-2: #1f252d; --line: #2a323c;
+  --fg: #e6eaf0; --muted: #8a94a3; --accent: #3b86ff; --ok: #3ddc84;
+  --font-ui: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "Nunito", "SF Pro Rounded", ui-rounded, system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font-ui);
+  padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 14px; }
+a { color: var(--accent); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+.panel h2 { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.row + .row { margin-top: 8px; }
+label { display: inline-flex; align-items: center; gap: 6px; }
+label .k { color: var(--muted); }
+input[type=number], input[type=text], select { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; }
+input[type=range] { accent-color: var(--accent); width: 140px; }
+input[type=checkbox] { accent-color: var(--accent); }
+button { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; font: 500 13px var(--font-ui); cursor: pointer; }
+button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.live.on { background: var(--ok); border-color: var(--ok); color: #06250f; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.val { font-family: var(--font-num); min-width: 3ch; display: inline-block; text-align: right; }
+.devices { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; justify-content: center; }
+.dev { display: grid; gap: 8px; justify-items: center; }
+.dev .cap { color: var(--muted); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+
+/* ---- iPhone -------------------------------------------------------------- */
+.iphone { width: 390px; height: 844px; border-radius: 54px; background: #000; border: 12px solid #1c1f24; box-shadow: 0 0 0 2px #3a3f47, 0 24px 60px rgba(0,0,0,.6); position: relative; overflow: hidden; }
+.iphone.landscape { width: 844px; height: 390px; }
+.iphone .island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 120px; height: 34px; border-radius: 20px; background: #000; z-index: 3; }
+.iphone.landscape .island { top: 50%; left: 11px; transform: translateY(-50%); width: 34px; height: 120px; }
+.iphone .sb { position: absolute; top: 16px; left: 28px; right: 28px; display: flex; justify-content: space-between; font: 600 15px var(--font-ui); color: #fff; z-index: 2; }
+.iphone.landscape .sb { display: none; }
+.iphone .home { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 134px; height: 5px; border-radius: 3px; background: #fff; opacity: .9; z-index: 2; }
+.screen { position: absolute; inset: 0; background: #000; }
+
+/* ---- CarPlay ------------------------------------------------------------- */
+.carplay { width: 800px; height: 480px; max-width: 100%; background: #000; border-radius: 10px; border: 14px solid #15171b; box-shadow: 0 0 0 2px #2b2f36, 0 24px 60px rgba(0,0,0,.6); position: relative; overflow: hidden; display: grid; grid-template-columns: 76px 1fr; }
+.carplay .side { background: #0d0f12; border-right: 1px solid #1f2329; display: grid; grid-template-rows: auto auto 1fr auto; justify-items: center; padding: 12px 0 10px; gap: 14px; }
+.carplay .side .clock { font: 600 15px var(--font-ui); color: #fff; }
+.carplay .side .homebtn { width: 44px; height: 44px; border-radius: 50%; background: #2a2f37; display: grid; place-items: center; }
+.carplay .side .homebtn i { width: 24px; height: 24px; border-radius: 6px; background: linear-gradient(135deg, #6ea8ff, #2a6cff); display: block; }
+.carplay .side .apps { display: grid; gap: 12px; align-content: start; }
+.carplay .side .apps div { width: 46px; height: 46px; border-radius: 11px; background: #23272e; overflow: hidden; }
+.carplay .side .apps div.cur { outline: 2px solid #3b86ff; outline-offset: 2px; }
+.carplay .side .apps img { width: 100%; height: 100%; display: block; }
+.carplay .side .apps .m { background: linear-gradient(160deg, #4cd964, #1f8f3a); }
+.carplay .side .apps .p { background: linear-gradient(160deg, #ff7a7a, #c62828); }
+.carplay .side .sig { display: flex; gap: 2px; align-items: flex-end; height: 10px; }
+.carplay .side .sig i { width: 3px; background: #9aa3b0; display: block; }
+.carplay .main { position: relative; background: #000; }
+
+/* ---- the app screen (shared) -------------------------------------------- */
+.app { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, #121820 0%, #000 70%); }
+.app .glow { position: absolute; inset: 0; pointer-events: none; opacity: 0; box-shadow: inset 0 0 90px 30px rgba(255, 50, 50, .55); }
+.app.warn .glow { animation: pulse .8s ease-in-out infinite alternate; }
+@keyframes pulse { from { opacity: .25 } to { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .app.warn .glow { animation: none; opacity: .7; } }
+
+.app .gauge { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: var(--g, 340px); height: var(--g, 340px); }
+.app .gauge svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.app .gauge .track { stroke: rgba(255,255,255,.08); }
+.app .gauge .fill { stroke: url(#gBlue); transition: stroke-dasharray .25s; }
+.app.near .gauge .fill { stroke: #ffb020; }
+.app.warn .gauge .fill { stroke: #ff3b3b; }
+.app .gauge .tick { stroke: rgba(255,255,255,.22); }
+.app .gauge .limitTick { stroke: #ff3b3b; }
+.app .num { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -56%); text-align: center; width: var(--g, 340px); }
+.app .num .speed { font: 900 var(--ns, 156px)/1 var(--font-num); color: #fff; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.app.warn .num .speed { color: #ff4a4a; }
+.app .num .unit { margin-top: 2px; font: 700 var(--us, 15px) var(--font-ui); color: #7d8795; letter-spacing: .22em; text-transform: uppercase; }
+
+.app .signwrap { position: absolute; top: var(--st, 70px); right: var(--sr, 20px); display: grid; gap: 7px; justify-items: center; }
+.app .sign { width: var(--sign, 96px); height: var(--sign, 96px); border-radius: 50%; background: #fff; position: relative;
+  box-shadow: 0 6px 18px rgba(0,0,0,.6); display: grid; place-items: center;
+  font: 800 calc(var(--sign, 96px) * .5) var(--font-num); color: #000; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.app .sign::before { content: ""; position: absolute; inset: calc(var(--sign, 96px) * .05); border-radius: 50%; border: calc(var(--sign, 96px) * .13) solid #e11d1d; }
+.app .sign.none { color: #b0b0b0; }
+.app .sign.none::before { border-color: #b8b8b8; }
+.app .sign.inh::before { border-color: #ef6e68; }
+.app .sign.inh { color: #333; }
+.app .sign.def::before { border-color: #8a97aa; }
+.app .sign.def { color: #333; }
+.app .sign span { position: relative; }
+.app .cap { font: 600 11px var(--font-ui); color: #8a94a3; letter-spacing: .04em; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.07); white-space: nowrap; }
+.app .cap.inh { color: #ffb3ae; } .app .cap.def { color: #aab6c8; }
+
+.app .chip { position: absolute; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.07); font: 600 12px var(--font-ui); color: #aab3bf; white-space: nowrap; }
+.app .chip i { width: 7px; height: 7px; border-radius: 50%; background: #3ddc84; display: block; }
+.app .chip.bad i { background: #ff5b5b; } .app .chip.wait i { background: #ffb020; }
+.app .gps { top: var(--ct, 70px); left: 20px; }
+.app .roadwrap { position: absolute; left: 20px; right: 20px; bottom: var(--rb, 86px); display: grid; gap: 6px; justify-items: center; }
+.app .road { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 9px 16px; border-radius: 999px; background: rgba(255,255,255,.08); font: 700 var(--rs, 19px) var(--font-ui); color: #e9edf2; }
+.app .road span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app .road svg { flex: none; opacity: .7; }
+.app .osm { font: 500 12px var(--font-ui); color: #6f7987; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app .gear { position: absolute; right: 18px; bottom: 36px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.06); display: grid; place-items: center; color: #8a94a3; }
+.app .off { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 32px; font: 600 20px var(--font-ui); color: #b3b3b3; }
+
+/* iPhone landscape */
+.iphone.landscape .app { --g: 290px; --ns: 128px; --st: 20px; --sr: 60px; --ct: 20px; --rb: 20px; --rs: 17px; }
+.iphone.landscape .app .gps { left: 60px; }
+.iphone.landscape .app .gear { bottom: 14px; right: 56px; }
+/* CarPlay: wide - gauge on the left half, the sign big on the right, road pill bottom-left */
+.carplay .app { --g: 400px; --ns: 184px; --us: 16px; --sign: 180px; --st: 50%; --sr: 60px; --ct: 20px; --rb: 20px; --rs: 22px; }
+.carplay .app .gauge, .carplay .app .num { left: 36%; }
+.carplay .app .signwrap { transform: translateY(-58%); }
+.carplay .app .gps { left: 20px; }
+.carplay .app .roadwrap { right: 300px; justify-items: start; }
+.carplay .app .gear { display: none; }
+.app[hidden] { display: none; }
+</style>
+</head>
+<body>
+<h1>OmniSpeed Mockup</h1>
+<p class="sub">Màn hình app trên iPhone và CarPlay, cùng một trạng thái. Bật <b>Live</b> để nhận trạng thái từ tab giả lập (<a href="index.html">index.html</a>) đang chạy.</p>
+
+<div class="panel">
+  <h2>Trạng thái</h2>
+  <div class="row" id="presets">
+    <button data-p="normal" class="on">Bình thường</button>
+    <button data-p="behind">Biển mượn (đã qua)</button>
+    <button data-p="default">Mặc định loại đường</button>
+    <button data-p="near">Sắp chạm giới hạn</button>
+    <button data-p="over">Vượt tốc độ</button>
+    <button data-p="nosign">Không có biển</button>
+    <button data-p="nogps">Chưa có GPS</button>
+    <button data-p="off">Đang tắt</button>
+    <button id="live" class="live">● Live từ giả lập</button>
+  </div>
+  <div class="row">
+    <label><span class="k">Tốc độ</span><input type="range" id="spd" min="0" max="140" value="48"><span class="val" id="spdv">48</span></label>
+    <label><span class="k">Biển</span><input type="number" id="lim" min="0" max="200" value="60" style="width:70px"></label>
+    <label><span class="k">Nguồn biển</span><select id="src"><option value="sign">tag trên đoạn</option><option value="behind">biển đã qua</option><option value="ahead">biển phía trước</option><option value="default">mặc định loại đường</option><option value="none">không có</option></select></label>
+    <label><span class="k">Tên đường</span><input type="text" id="road" value="Cộng Hòa"></label>
+    <label><select id="lang"><option value="vi">Tiếng Việt</option><option value="en">English</option></select></label>
+    <label><input type="checkbox" id="landscape"> iPhone ngang</label>
+    <label><input type="checkbox" id="cp720"> CarPlay 1280×720 (thu nhỏ)</label>
+  </div>
+</div>
+
+<div class="devices">
+  <div class="dev">
+    <div class="cap">iPhone</div>
+    <div class="iphone" id="iphone">
+      <div class="island"></div>
+      <div class="sb"><span id="clock1">9:41</span><span>●●●● ▮</span></div>
+      <div class="screen"><div class="app" id="appPhone"></div></div>
+      <div class="home"></div>
+    </div>
+  </div>
+  <div class="dev">
+    <div class="cap">CarPlay</div>
+    <div class="carplay" id="carplay">
+      <div class="side">
+        <div class="clock" id="clock2">9:41</div>
+        <div class="homebtn"><i></i></div>
+        <div class="apps"><div class="cur"><img src="icon.png" alt=""></div><div class="m"></div><div class="p"></div></div>
+        <div class="sig"><i style="height:4px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:10px"></i></div>
+      </div>
+      <div class="main"><div class="app" id="appCar"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const GEAR = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.4 13a7.8 7.8 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3.3H9l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.8 7.8 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.6 7.6 0 0 0 1.7 1l.4 2.6h6l.4-2.6a7.6 7.6 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>';
+const ROAD = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 21 9 3M18 21 15 3M12 6v2M12 11v2M12 16v2"/></svg>';
+
+// State mirrors what OSPSpeedViewController.refresh reads from OSPSpeedFeed
+const state = { enabled: true, speed: 48, gpsAcc: 8, limit: 60, source: 'sign', road: 'Cộng Hòa', highway: 'primary', oneway: true, dist: 350, warnOver: 5, lang: 'vi' };
+const T = (vi, en) => state.lang === 'vi' ? vi : en;
+
+const PRESETS = {
+  normal:  { enabled: true, speed: 48, gpsAcc: 8, limit: 60, source: 'sign', road: 'Nguyễn Văn Trỗi' },
+  behind:  { enabled: true, speed: 52, gpsAcc: 6, limit: 60, source: 'behind', road: 'Nguyễn Văn Trỗi', dist: 410 },
+  default: { enabled: true, speed: 45, gpsAcc: 9, limit: 60, source: 'default', road: 'Cộng Hòa', highway: 'primary', oneway: true },
+  near:    { enabled: true, speed: 58, gpsAcc: 5, limit: 60, source: 'sign', road: 'Nam Kỳ Khởi Nghĩa' },
+  over:    { enabled: true, speed: 74, gpsAcc: 5, limit: 60, source: 'sign', road: 'Nam Kỳ Khởi Nghĩa' },
+  nosign:  { enabled: true, speed: 23, gpsAcc: 12, limit: -1, source: 'none', road: 'Hẻm 43 Cộng Hòa' },
+  nogps:   { enabled: true, speed: -1, gpsAcc: -1, limit: -1, source: 'none', road: '' },
+  off:     { enabled: false },
+};
+
+// 270° arc gauge: 0 at 135° (bottom-left) clockwise to the top speed of the scale; the limit gets a red tick.
+function gaugeSVG() {
+  const R = 100, C = 2 * Math.PI * R, SWEEP = 270 / 360;
+  const top = Math.max(100, state.limit > 0 ? Math.ceil(state.limit * 1.6 / 20) * 20 : 120);   // scale end
+  const frac = state.speed >= 0 ? Math.min(1, state.speed / top) : 0;
+  let ticks = '';
+  for (let v = 0; v <= top; v += 20) {
+    const a = (135 + 270 * v / top) * Math.PI / 180, r1 = R + 12, r2 = R + 19;
+    ticks += `<line class="tick" x1="${120 + r1 * Math.cos(a)}" y1="${120 + r1 * Math.sin(a)}" x2="${120 + r2 * Math.cos(a)}" y2="${120 + r2 * Math.sin(a)}" stroke-width="2" stroke-linecap="round"/>`;
+  }
+  let limitTick = '';
+  if (state.limit > 0 && state.limit <= top) {
+    const a = (135 + 270 * state.limit / top) * Math.PI / 180, r1 = R - 9, r2 = R + 9;
+    limitTick = `<line class="limitTick" x1="${120 + r1 * Math.cos(a)}" y1="${120 + r1 * Math.sin(a)}" x2="${120 + r2 * Math.cos(a)}" y2="${120 + r2 * Math.sin(a)}" stroke-width="4" stroke-linecap="round"/>`;
+  }
+  return `<svg viewBox="0 0 240 240">
+    <defs><linearGradient id="gBlue" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#2f7bff"/><stop offset="1" stop-color="#6fd3ff"/></linearGradient></defs>
+    <g transform="rotate(135 120 120)">
+      <circle class="track" cx="120" cy="120" r="${R}" fill="none" stroke-width="11" stroke-linecap="round" stroke-dasharray="${C * SWEEP} ${C}"/>
+      <circle class="fill" cx="120" cy="120" r="${R}" fill="none" stroke-width="11" stroke-linecap="round" stroke-dasharray="${C * SWEEP * frac} ${C}"/>
+    </g>${ticks}${limitTick}</svg>`;
+}
+
+function render() {
+  const warn = isWarn(), near = !warn && state.enabled && state.limit > 0 && state.speed >= 0 && state.speed >= state.limit - 5;
+  for (const el of [$('appPhone'), $('appCar')]) { el.innerHTML = screenHTML(); el.classList.toggle('warn', warn); el.classList.toggle('near', near); }
+}
+function isWarn() { return state.enabled && state.limit > 0 && state.speed >= 0 && state.speed > state.limit + state.warnOver; }
+function screenHTML() {
+  if (!state.enabled) return `<div class="off">${T('OmniSpeed đang tắt.<br>Bật trong Cài đặt &gt; OmniSpeed.', 'OmniSpeed is off.<br>Turn it on in Settings &gt; OmniSpeed.')}</div>`;
+  const hasGps = state.speed >= 0;
+  const gpsChip = hasGps ? `<div class="chip gps"><i></i>GPS ±${state.gpsAcc} m</div>` : `<div class="chip gps wait"><i></i>${T('Đang tìm GPS…', 'Looking for GPS…')}</div>`;
+  let cap = '', capCls = '', osm;
+  switch (state.source) {
+    case 'sign':    cap = 'OpenStreetMap'; osm = T(`Giới hạn ${state.limit} km/h theo OpenStreetMap`, `Limit ${state.limit} km/h from OpenStreetMap`); break;
+    case 'behind':  cap = `≈ ${T('đã qua', 'passed')} ${state.dist} m`; capCls = 'inh'; osm = T(`Biển đã qua trên đường này, ${state.dist} m trước`, `Sign passed on this road ${state.dist} m back`); break;
+    case 'ahead':   cap = `≈ ${T('phía trước', 'ahead')} ${state.dist} m`; capCls = 'inh'; osm = T(`Biển phía trước trên đường này, ${state.dist} m`, `Sign ahead on this road, ${state.dist} m`); break;
+    case 'default': cap = T('mặc định', 'default'); capCls = 'def'; osm = T(`Chưa có biển trên OSM · mặc định ${state.highway}${state.oneway ? ' một chiều / đường đôi' : ''}`, `No sign in OSM · default for ${state.highway}${state.oneway ? ' one-way / dual' : ''}`); break;
+    default:        cap = T('chưa có', 'none'); osm = state.road || !hasGps ? T('OpenStreetMap: đường này chưa có giới hạn', 'OpenStreetMap: no limit tagged on this road') : T('OpenStreetMap: không ở trên đường', 'OpenStreetMap: not on a road');
+  }
+  const signCls = state.limit > 0 ? (state.source === 'default' ? 'def' : (state.source === 'behind' || state.source === 'ahead') ? 'inh' : '') : 'none';
+  const signHidden = !state.road && !hasGps;
+  const roadName = state.road || (hasGps ? T('Đường không tên', 'Unnamed road') : '');
+  return `<div class="glow"></div>
+    <div class="gauge">${gaugeSVG()}</div>
+    <div class="num"><div class="speed">${hasGps ? state.speed : '--'}</div><div class="unit">km/h</div></div>
+    ${gpsChip}
+    <div class="signwrap" ${signHidden ? 'hidden' : ''}><div class="sign ${signCls}"><span>${state.limit > 0 ? state.limit : '–'}</span></div><div class="cap ${capCls}">${cap}</div></div>
+    <div class="roadwrap">${roadName ? `<div class="road">${ROAD}<span>${roadName}</span></div>` : ''}<div class="osm">${hasGps || state.road ? osm : 'OpenStreetMap'}</div></div>
+    <div class="gear">${GEAR}</div>`;
+}
+
+// controls
+function syncControls() {
+  $('spd').value = Math.max(0, state.speed); $('spdv').textContent = state.speed >= 0 ? state.speed : '--';
+  $('lim').value = state.limit > 0 ? state.limit : 0; $('src').value = state.source; $('road').value = state.road; $('lang').value = state.lang;
+}
+$('presets').querySelectorAll('button[data-p]').forEach(b => b.onclick = () => {
+  setLive(false);
+  $('presets').querySelectorAll('button[data-p]').forEach(x => x.classList.toggle('on', x === b));
+  Object.assign(state, { dist: 350, highway: 'primary', oneway: true }, PRESETS[b.dataset.p]);
+  syncControls(); render();
+});
+$('spd').oninput = e => { state.speed = +e.target.value; $('spdv').textContent = state.speed; render(); };
+$('lim').oninput = e => { state.limit = +e.target.value || -1; if (state.limit <= 0) state.source = 'none'; else if (state.source === 'none') state.source = 'sign'; $('src').value = state.source; render(); };
+$('src').onchange = e => { state.source = e.target.value; if (state.source === 'none') { state.limit = -1; $('lim').value = 0; } else if (state.limit <= 0) { state.limit = 60; $('lim').value = 60; } render(); };
+$('road').oninput = e => { state.road = e.target.value; render(); };
+$('lang').onchange = e => { state.lang = e.target.value; render(); };
+$('landscape').onchange = e => $('iphone').classList.toggle('landscape', e.target.checked);
+$('cp720').onchange = e => { const c = $('carplay'); c.style.width = e.target.checked ? '1280px' : ''; c.style.height = e.target.checked ? '720px' : ''; c.style.transform = e.target.checked ? 'scale(.625)' : ''; c.style.transformOrigin = 'top center'; c.style.marginBottom = e.target.checked ? '-270px' : ''; };
+
+// Live: the simulator tab broadcasts its screen state (BroadcastChannel "omnispeed", same origin)
+let live = false, bc = null;
+try { bc = new BroadcastChannel('omnispeed'); } catch (e) {}
+function setLive(on) {
+  live = on && !!bc;
+  $('live').classList.toggle('on', live);
+  $('live').textContent = live ? '● Live từ giả lập (đang nhận)' : '● Live từ giả lập';
+  if (live) $('presets').querySelectorAll('button[data-p]').forEach(x => x.classList.remove('on'));
+}
+$('live').onclick = () => setLive(!live);
+if (bc) bc.onmessage = e => {
+  if (!live || !e.data || e.data.type !== 'state') return;
+  Object.assign(state, e.data.state);
+  syncControls(); render();
+};
+
+function clock() { const d = new Date(); const t = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); $('clock1').textContent = t; $('clock2').textContent = t; }
+clock(); setInterval(clock, 15000);
+syncControls(); render();
+</script>
+</body>
+</html>
